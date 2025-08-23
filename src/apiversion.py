@@ -27,9 +27,9 @@ def text_generator_thread(prompt: str):
     try:
         client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
-        model_name = "gemma-3n-e2b-it"
+        model_names = ["gemini-2.5-flash-lite","gemma-3n-e2b-it"]
 
-        context = "#Do not speak about this section. Just attention.\n\n読み上げが出来るよう、マークダウン、絵文字、表は使わず話してください。だ、である口調で話してください。また、出来ない、分からないことは正直に答えてください。\n\n#Below is the input from the user.\n\n"
+        context = "# Do not speak about this section. Just attention.\n\nDo not use markdown, emojis, or line breaks. If there is something you do not know or cannot do, answer honestly by saying so. Do not use English. When English words must appear, write them in katakana.\n\n#Below is the input from the user.\n\n"
         full_prompt = context + prompt
 
         contents = [
@@ -41,32 +41,47 @@ def text_generator_thread(prompt: str):
 
         sentence_buffer = ""
         # 区切り文字の正規表現（。と改行）
-        delimiters = r"([。\n])"
+        delimiters = r"。"
 
         print("Gemma: ", end="", flush=True)
 
-        stream = client.models.generate_content_stream(
-            model=model_name,
-            contents=contents,
-        )
+        stream = None
+        for model in model_names:
+            try:
+                stream = client.models.generate_content_stream(
+                    model=model,
+                    contents=contents,
+                )
+                print("Using Model:",model)
+                break
+            except:
+                continue
 
         for chunk in stream:
-            # バッファにテキストを追加
             if chunk.text:
                 sentence_buffer += chunk.text
             print(chunk.text, end="", flush=True)
 
-            # バッファ内に区切り文字があるかチェックし、あればキューに入れる
             while True:
-                match = re.search(delimiters, sentence_buffer)
-                if match:
-                    split_point = match.end()
+                # バッファ内の句点を探す
+                matches = [m.end() for m in re.finditer(delimiters, sentence_buffer)]
+                if not matches:
+                    break  # 句点が無ければ次のチャンク待ち
+
+                # 50文字に最も近い句点を探す
+                closest = min(matches, key=lambda x: abs(x - 50))
+
+                # バッファ長が50文字以上、または句点が近い位置にある場合に分割
+                if len(sentence_buffer) >= 50 or abs(closest - 50) <= 10:
+                    split_point = closest
                     sentence = sentence_buffer[:split_point]
                     sentence_buffer = sentence_buffer[split_point:]
                     if sentence.strip():
                         text_chunk_queue.put(sentence)
                 else:
                     break
+
+
 
         # ストリーム終了後、バッファに残ったテキストをキューに入れる
         if sentence_buffer.strip():
