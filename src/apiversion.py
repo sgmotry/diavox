@@ -27,7 +27,7 @@ def text_generator_thread(prompt: str):
     try:
         client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
-        model_names = ["gemini-2.5-flash-lite","gemma-3n-e2b-it"]
+        model_names = ["gemini-2.5-flash-lite","gemma-3n-e4b-it"]
 
         context = "# Do not speak about this section. Just attention.\n\nDo not use markdown, emojis, or line breaks. If there is something you do not know or cannot do, answer honestly by saying so. Do not use English. When English words must appear, write them in katakana.\n\n#Below is the input from the user.\n\n"
         full_prompt = context + prompt
